@@ -5,14 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 
 export function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState("admin") // Para el entorno mock
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -28,17 +26,6 @@ export function Login() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    
-    // Simular login para el entorno de desarrollo si no hay credenciales de Supabase
-    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('your-project-id')) {
-      setTimeout(() => {
-        localStorage.setItem('mock_user', 'true')
-        localStorage.setItem('mock_role', role)
-        // Recargar para que el AuthProvider detecte los cambios
-        window.location.reload()
-      }, 500)
-      return
-    }
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -52,8 +39,6 @@ export function Login() {
       navigate("/")
     }
   }
-
-  const isMockEnv = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('your-project-id')
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-950 px-4">
@@ -76,6 +61,7 @@ export function Login() {
                 placeholder="m@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
             <div className="space-y-2">
@@ -85,45 +71,15 @@ export function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
               />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="role">Rol (Modo Demo)</Label>
-              <Select id="role" value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="admin">Administrador</option>
-                <option value="operador">Operador (Caja y Transacciones)</option>
-                <option value="solo_lectura">Solo Lectura</option>
-              </Select>
-              <p className="text-xs text-gray-500">
-                Selecciona un rol y haz clic en "Entrar en Modo Demo" para probar.
-              </p>
             </div>
 
             {error && <p className="text-sm text-rose-500">{error}</p>}
-            
-            <div className="space-y-2">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Iniciando sesión..." : "Iniciar Sesión (Supabase)"}
-              </Button>
-              <Button 
-                type="button" 
-                variant="secondary" 
-                className="w-full" 
-                onClick={(e) => {
-                  e.preventDefault()
-                  setLoading(true)
-                  setTimeout(() => {
-                    localStorage.setItem('mock_user', 'true')
-                    localStorage.setItem('mock_role', role)
-                    window.location.reload()
-                  }, 500)
-                }} 
-                disabled={loading}
-              >
-                Entrar en Modo Demo
-              </Button>
-            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
+            </Button>
           </form>
         </CardContent>
       </Card>

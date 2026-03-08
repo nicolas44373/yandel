@@ -3,9 +3,10 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2 } from "lucide-react"
 import { useCategorias } from "@/hooks/useCategorias"
+import { useAuth } from "@/contexts/AuthContext"
+import { GestionEmpleados } from "./GestionEmpleados"
 
 function CategoriaManager({ tipo }: { tipo: 'ingreso' | 'gasto' }) {
   const { categorias, loading, addCategoria, deleteCategoria } = useCategorias(tipo)
@@ -31,8 +32,8 @@ function CategoriaManager({ tipo }: { tipo: 'ingreso' | 'gasto' }) {
       </CardHeader>
       <CardContent className="space-y-6">
         <form onSubmit={handleAdd} className="flex gap-2">
-          <Input 
-            placeholder="Nueva categoría..." 
+          <Input
+            placeholder="Nueva categoría..."
             value={nuevaCategoria}
             onChange={(e) => setNuevaCategoria(e.target.value)}
             className="max-w-sm"
@@ -60,9 +61,9 @@ function CategoriaManager({ tipo }: { tipo: 'ingreso' | 'gasto' }) {
                   <tr key={cat.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                     <td className="px-4 py-3 font-medium text-gray-100">{cat.nombre}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-400/10"
                         onClick={() => deleteCategoria(cat.id)}
                       >
@@ -81,6 +82,8 @@ function CategoriaManager({ tipo }: { tipo: 'ingreso' | 'gasto' }) {
 }
 
 export function Configuracion() {
+  const { profile } = useAuth()
+
   return (
     <div className="space-y-8">
       <div>
@@ -92,6 +95,8 @@ export function Configuracion() {
         <CategoriaManager tipo="ingreso" />
         <CategoriaManager tipo="gasto" />
       </div>
+
+      {profile?.rol === "admin" && <GestionEmpleados />}
     </div>
   )
 }
