@@ -45,7 +45,7 @@ export function Login() {
       <Card className="w-full max-w-md border-gray-800 bg-gray-900">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold tracking-tight text-gray-100">
-            Malas Influencias
+            Nicem
           </CardTitle>
           <p className="text-sm text-gray-400">
             Ingresa tus credenciales para acceder al sistema de caja.

@@ -42,7 +42,7 @@ export function Sidebar() {
     <div className="flex h-full w-64 flex-col bg-gray-900 border-r border-gray-800">
       <div className="flex h-16 items-center px-6 border-b border-gray-800">
         <h1 className="text-lg font-bold text-gray-100 tracking-tight">
-          Malas Influencias
+          Nicem
         </h1>
       </div>
 

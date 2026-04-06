@@ -190,7 +190,7 @@ export function GestionEmpleados() {
                   name="organizacion"
                   value={form.organizacion}
                   onChange={handleChange}
-                  placeholder="Malas Influencias"
+                  placeholder="Nicem"
                 />
               </div>
               <div className="space-y-1 sm:col-span-2">

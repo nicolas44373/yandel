@@ -23,28 +23,26 @@ export function Gastos() {
   const canDelete = profile?.rol === 'admin'
 
   const onSubmit = async (data: any) => {
-    if (isReadOnly) return
+  if (isReadOnly) return
 
-    const categoriaSeleccionada = categorias.find(c => c.id === data.categoria)
-
-    const newGasto = {
-      tipo: 'gasto' as const,
-      concepto: data.concepto,
-      monto: parseFloat(data.monto),
-      medio_pago: data.medio,
-      categoria_gasto_id: data.categoria || null,
-      categoria_gasto: categoriaSeleccionada ? { nombre: categoriaSeleccionada.nombre } : null,
-      fecha: new Date().toISOString()
-    }
-    
-    const { error } = await addTransaccion(newGasto)
-    if (!error) {
-      reset()
-      setShowForm(false)
-    } else {
-      alert("Error al guardar: " + error)
-    }
+  const newGasto = {
+    tipo: 'gasto' as const,
+    concepto: data.concepto,
+    monto: parseFloat(data.monto),
+    medio_pago: data.medio,
+    categoria_gasto_id: data.categoria || null, // ✅ solo el UUID
+    // ❌ NO debe existir: categoria_gasto: { nombre: ... }
+    fecha: new Date().toISOString(),
   }
+
+  const { error } = await addTransaccion(newGasto)
+  if (!error) {
+    reset()
+    setShowForm(false)
+  } else {
+    alert('Error al guardar: ' + error)
+  }
+}
 
   return (
     <div className="space-y-8">

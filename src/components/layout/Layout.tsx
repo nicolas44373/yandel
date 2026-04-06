@@ -15,7 +15,7 @@ export function Layout() {
         {/* Header mobile */}
         <div className="sticky top-0 z-20 flex h-14 items-center border-b border-gray-800 bg-gray-900 px-4 md:hidden">
           <h1 className="text-base font-bold tracking-tight text-gray-100">
-            Malas Influencias
+            Nicem
           </h1>
         </div>
 

@@ -23,28 +23,26 @@ export function Ingresos() {
   const canDelete = profile?.rol === 'admin'
 
   const onSubmit = async (data: any) => {
-    if (isReadOnly) return
+  if (isReadOnly) return
 
-    const categoriaSeleccionada = categorias.find(c => c.id === data.categoria)
-    
-    const newIngreso = {
-      tipo: 'ingreso' as const,
-      concepto: data.concepto,
-      monto: parseFloat(data.monto),
-      medio_pago: data.medio,
-      categoria_id: data.categoria || null,
-      categoria_ingreso: categoriaSeleccionada ? { nombre: categoriaSeleccionada.nombre } : null,
-      fecha: new Date().toISOString()
-    }
-    
-    const { error } = await addTransaccion(newIngreso)
-    if (!error) {
-      reset()
-      setShowForm(false)
-    } else {
-      alert("Error al guardar: " + error)
-    }
+  const newIngreso = {
+    tipo: 'ingreso' as const,
+    concepto: data.concepto,
+    monto: parseFloat(data.monto),
+    medio_pago: data.medio,
+    categoria_ingreso_id: data.categoria || null, // ✅ nombre real de la columna
+    // ❌ eliminado: categoria_ingreso — era un objeto virtual, no columna de DB
+    fecha: new Date().toISOString(),
   }
+
+  const { error } = await addTransaccion(newIngreso)
+  if (!error) {
+    reset()
+    setShowForm(false)
+  } else {
+    alert('Error al guardar: ' + error)
+  }
+}
 
   return (
     <div className="space-y-8">
@@ -69,7 +67,7 @@ export function Ingresos() {
             <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="concepto">Concepto</Label>
-                <Input id="concepto" placeholder="Ej: Tatuaje manga" {...register("concepto", { required: true })} />
+                <Input id="concepto" placeholder="Ej: Recaudacion" {...register("concepto", { required: true })} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="monto">Monto (ARS)</Label>
