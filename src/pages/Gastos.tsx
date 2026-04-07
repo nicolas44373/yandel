@@ -10,7 +10,7 @@ import { Plus, Search, Trash2 } from "lucide-react"
 import { useTransacciones } from "@/hooks/useTransacciones"
 import { useCategorias } from "@/hooks/useCategorias"
 import { useForm } from "react-hook-form"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from '@/hooks/useAuth'
 
 export function Gastos() {
   const [showForm, setShowForm] = useState(false)

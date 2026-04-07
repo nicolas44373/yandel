@@ -8,7 +8,7 @@ import { Movimientos } from "./pages/Movimientos"
 import { Reportes } from "./pages/Reportes"
 import { Configuracion } from "./pages/Configuracion"
 import { Login } from "./pages/Login"
-import { AuthProvider } from "./contexts/AuthContext"
+import { AuthProvider } from '@/contexts/AuthProvider'
 import { ProtectedRoute } from "./components/ProtectedRoute"
 
 export default function App() {

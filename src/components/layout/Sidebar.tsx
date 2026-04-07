@@ -11,7 +11,7 @@ import {
   User,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from '@/hooks/useAuth'
 
 export function Sidebar() {
   const { profile, signOut } = useAuth()

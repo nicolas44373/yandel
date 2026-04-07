@@ -33,6 +33,7 @@ export interface CierreCaja {
   diferencia?: number;
   observaciones?: string;
   estado: 'abierta' | 'cerrada';
+    user_id:          string | null   // ← agregar esto
 }
 
 export interface Categoria {
@@ -42,3 +43,4 @@ export interface Categoria {
   icono: string;
   activa: boolean;
 }
+

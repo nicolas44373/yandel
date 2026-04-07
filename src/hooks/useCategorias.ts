@@ -1,44 +1,66 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 export interface Categoria {
-  id: string
+  id:     string
   nombre: string
 }
 
-export function useCategorias(tipo: 'ingreso' | 'gasto') {
+type TipoCategoria = 'ingreso' | 'gasto'
+
+const TABLA: Record<TipoCategoria, string> = {
+  ingreso: 'categorias_ingreso',
+  gasto:   'categorias_gasto',
+}
+
+export function useCategorias(tipo: TipoCategoria) {
+  const { user, profile } = useAuth()
+  const isAdmin        = profile?.rol === 'admin'
+  const initializedRef = useRef(false)
+
   const [categorias, setCategorias] = useState<Categoria[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
 
-  const tabla = tipo === 'ingreso' ? 'categorias_ingreso' : 'categorias_gasto'
+  const tabla = TABLA[tipo]
 
-  const fetchCategorias = async () => {
+  const fetchCategorias = useCallback(async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    // Solo mostrar spinner en la primera carga
+    if (!initializedRef.current) setLoading(true)
+
     try {
-      setLoading(true)
       setError(null)
 
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from(tabla)
         .select('id, nombre')
         .order('nombre')
 
-      if (error) throw error
-
+      if (fetchError) throw fetchError
       setCategorias(data as Categoria[])
+      initializedRef.current = true
     } catch (err: any) {
-      console.error(`Error fetching ${tabla}:`, err)
+      if (err?.message?.includes('AbortError') || err?.details?.includes('AbortError')) return
+      console.error(`useCategorias(${tipo}) — fetchError:`, err)
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, tabla])
 
   useEffect(() => {
     fetchCategorias()
-  }, [tipo])
+  }, [fetchCategorias])
 
   const addCategoria = async (nombre: string) => {
+    if (!isAdmin) return { data: null, error: 'Sin permisos' }
+
     try {
       const { data, error } = await supabase
         .from(tabla)
@@ -58,12 +80,10 @@ export function useCategorias(tipo: 'ingreso' | 'gasto') {
   }
 
   const deleteCategoria = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from(tabla)
-        .delete()
-        .eq('id', id)
+    if (!isAdmin) return { error: 'Sin permisos' }
 
+    try {
+      const { error } = await supabase.from(tabla).delete().eq('id', id)
       if (error) throw error
 
       setCategorias(prev => prev.filter(c => c.id !== id))
@@ -73,5 +93,13 @@ export function useCategorias(tipo: 'ingreso' | 'gasto') {
     }
   }
 
-  return { categorias, loading, error, addCategoria, deleteCategoria, refetch: fetchCategorias }
+  return {
+    categorias,
+    loading,
+    error,
+    addCategoria,
+    deleteCategoria,
+    refetch: fetchCategorias,
+    canWrite: isAdmin,
+  }
 }

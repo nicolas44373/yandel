@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2 } from "lucide-react"
 import { useCategorias } from "@/hooks/useCategorias"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from '@/hooks/useAuth'
 import { GestionEmpleados } from "./GestionEmpleados"
 
 function CategoriaManager({ tipo }: { tipo: 'ingreso' | 'gasto' }) {

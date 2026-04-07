@@ -1,174 +1,154 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 import { CierreCaja } from '@/types'
 
-const INITIAL_MOCK_CAJA: CierreCaja = {
-  id: '1',
-  fecha_apertura: new Date().toISOString(),
-  saldo_apertura: 25000,
-  estado: 'abierta',
-}
-
-const getMockCajaHistorial = (): CierreCaja[] => {
-  const stored = localStorage.getItem('mock_caja_historial')
-  if (stored) {
-    return JSON.parse(stored)
-  }
-  localStorage.setItem('mock_caja_historial', JSON.stringify([INITIAL_MOCK_CAJA]))
-  return [INITIAL_MOCK_CAJA]
-}
-
-const saveMockCajaHistorial = (data: CierreCaja[]) => {
-  localStorage.setItem('mock_caja_historial', JSON.stringify(data))
+export interface CierreCajaConEmpleado extends CierreCaja {
+  profiles?: { nombre: string | null } | null
 }
 
 export function useCaja() {
-  const [cajaActual, setCajaActual] = useState<CierreCaja | null>(null)
-  const [historial, setHistorial] = useState<CierreCaja[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isMock, setIsMock] = useState(false)
+  const { user, profile } = useAuth()
+  const isAdmin           = profile?.rol === 'admin'
+  const initializedRef    = useRef(false)
 
-  const fetchCaja = async () => {
+  const [cajaActual, setCajaActual] = useState<CierreCajaConEmpleado | null>(null)
+  const [historial, setHistorial]   = useState<CierreCajaConEmpleado[]>([])
+  const [loading, setLoading]       = useState(true)
+
+  const fetchCaja = useCallback(async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    // Solo mostrar spinner en la primera carga
+    if (!initializedRef.current) setLoading(true)
+
     try {
-      setLoading(true)
-      const { data, error } = await supabase
+      let query = supabase
         .from('cierres_caja')
         .select('*')
         .order('fecha_apertura', { ascending: false })
 
-      if (error) {
-        if (error.code === 'PGRST205' || error.message.includes('FetchError') || error.message.includes('Failed to fetch')) {
-          setIsMock(true)
-          const mockHistorial = getMockCajaHistorial()
-          setHistorial(mockHistorial)
-          if (mockHistorial.length > 0 && mockHistorial[0].estado === 'abierta') {
-            setCajaActual(mockHistorial[0])
-          } else {
-            setCajaActual(null)
-          }
-          return
+      if (!isAdmin) query = query.eq('user_id', user.id)
+
+      const { data, error } = await query
+      if (error) throw error
+
+      let registros = (data ?? []) as CierreCajaConEmpleado[]
+
+      if (isAdmin && registros.length > 0) {
+        const userIds = [
+          ...new Set(registros.map(c => c.user_id).filter(Boolean))
+        ] as string[]
+
+        if (userIds.length > 0) {
+          const { data: perfiles } = await supabase
+            .from('profiles')
+            .select('id, nombre')
+            .in('id', userIds)
+
+          const mapaPerfiles: Record<string, string | null> = Object.fromEntries(
+            (perfiles ?? []).map(p => [p.id, p.nombre])
+          )
+
+          registros = registros.map(c => ({
+            ...c,
+            profiles: c.user_id
+              ? { nombre: mapaPerfiles[c.user_id] ?? null }
+              : null,
+          }))
         }
-        throw error
       }
-      
-      setIsMock(false)
-      if (data && data.length > 0) {
-        if (data[0].estado === 'abierta') {
-          setCajaActual(data[0] as CierreCaja)
-        } else {
-          setCajaActual(null)
-        }
-        setHistorial(data as CierreCaja[])
-      } else {
-        setCajaActual(null)
-        setHistorial([])
-      }
-    } catch (err) {
-      console.error("Error fetching caja", err)
-      setIsMock(true)
-      const mockHistorial = getMockCajaHistorial()
-      setHistorial(mockHistorial)
-      if (mockHistorial.length > 0 && mockHistorial[0].estado === 'abierta') {
-        setCajaActual(mockHistorial[0])
-      } else {
-        setCajaActual(null)
-      }
+
+      setHistorial(registros)
+
+      const abierta = isAdmin
+        ? registros.find(c => c.estado === 'abierta') ?? null
+        : registros.find(c => c.estado === 'abierta' && c.user_id === user.id) ?? null
+
+      setCajaActual(abierta)
+      initializedRef.current = true
+    } catch (err: any) {
+      if (err?.message?.includes('AbortError') || err?.details?.includes('AbortError')) return
+      console.error('useCaja — fetchError:', err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, isAdmin])
 
   useEffect(() => {
     fetchCaja()
-  }, [])
+  }, [fetchCaja])
 
   const abrirCaja = async (saldoApertura: number) => {
-    if (isMock) {
-      const nuevaCaja: CierreCaja = {
-        id: Math.random().toString(),
-        fecha_apertura: new Date().toISOString(),
-        saldo_apertura: saldoApertura,
-        estado: 'abierta',
-      }
-      const currentHistorial = getMockCajaHistorial()
-      const updatedHistorial = [nuevaCaja, ...currentHistorial]
-      saveMockCajaHistorial(updatedHistorial)
-
-      setCajaActual(nuevaCaja)
-      setHistorial(updatedHistorial)
-      return { data: nuevaCaja, error: null }
-    }
+    if (!user) return { data: null, error: 'No autenticado' }
 
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-
-      const nuevaCaja = {
-        fecha_apertura: new Date().toISOString(),
-        saldo_apertura: saldoApertura,
-        estado: 'abierta',
-        user_id: userId || null
-      }
-
       const { data, error } = await supabase
         .from('cierres_caja')
-        .insert([nuevaCaja])
+        .insert([{
+          fecha_apertura: new Date().toISOString(),
+          saldo_apertura: saldoApertura,
+          estado:         'abierta',
+          user_id:        user.id,
+        }])
         .select()
         .single()
 
       if (error) throw error
-      
-      setCajaActual(data as CierreCaja)
-      setHistorial(prev => [data as CierreCaja, ...prev])
-      return { data, error: null }
+
+      const nueva: CierreCajaConEmpleado = {
+        ...(data as CierreCaja),
+        profiles: { nombre: profile?.nombre ?? null },
+      }
+
+      setCajaActual(nueva)
+      setHistorial(prev => [nueva, ...prev])
+      return { data: nueva, error: null }
     } catch (err: any) {
       return { data: null, error: err.message }
     }
   }
 
   const cerrarCaja = async (id: string, efectivoContado: number, observaciones?: string) => {
-    if (isMock) {
-      const updateData = {
-        ...cajaActual!,
-        estado: 'cerrada' as const,
-        fecha_cierre: new Date().toISOString(),
-        efectivo_contado: efectivoContado,
-        observaciones: observaciones || undefined
-      }
-      
-      const currentHistorial = getMockCajaHistorial()
-      const updatedHistorial = currentHistorial.map(c => c.id === id ? updateData : c)
-      saveMockCajaHistorial(updatedHistorial)
-
-      setCajaActual(null)
-      setHistorial(updatedHistorial)
-      return { data: updateData, error: null }
-    }
-
     try {
-      const updateData = {
-        estado: 'cerrada',
-        fecha_cierre: new Date().toISOString(),
-        efectivo_contado: efectivoContado,
-        observaciones: observaciones || null
-      }
-
       const { data, error } = await supabase
         .from('cierres_caja')
-        .update(updateData)
+        .update({
+          estado:           'cerrada',
+          fecha_cierre:     new Date().toISOString(),
+          efectivo_contado: efectivoContado,
+          observaciones:    observaciones ?? null,
+        })
         .eq('id', id)
         .select()
         .single()
 
       if (error) throw error
-      
+
+      const cerrada = data as CierreCajaConEmpleado
       setCajaActual(null)
-      setHistorial(prev => prev.map(c => c.id === id ? data as CierreCaja : c))
-      return { data, error: null }
+      setHistorial(prev => prev.map(c => c.id === id ? cerrada : c))
+      return { data: cerrada, error: null }
     } catch (err: any) {
       return { data: null, error: err.message }
     }
   }
 
-  return { cajaActual, historial, loading, abrirCaja, cerrarCaja, refetch: fetchCaja }
+  const totalCajasAbiertas = historial
+    .filter(c => c.estado === 'abierta')
+    .reduce((sum, c) => sum + c.saldo_apertura, 0)
+
+  return {
+    cajaActual,
+    historial,
+    loading,
+    abrirCaja,
+    cerrarCaja,
+    refetch: fetchCaja,
+    isAdmin,
+    totalCajasAbiertas,
+  }
 }
