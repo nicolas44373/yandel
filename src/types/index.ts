@@ -11,8 +11,8 @@ export interface Transaccion {
   concepto: string;
   monto: number;
   medio_pago: MedioPago;
-  categoria_id?: string;
-  categoria_gasto_id?: string;
+  categoria_ingreso_id?: string | null   // ← agregar
+  categoria_gasto_id?:   string | null
   comprobante?: string;
   nro_operacion?: string;
   proveedor_cliente?: string;
