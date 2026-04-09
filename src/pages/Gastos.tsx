@@ -6,44 +6,66 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { Plus, Trash2 } from "lucide-react"
-import { useTransacciones } from "@/hooks/useTransacciones"
+import { Plus, Trash2, Pencil } from "lucide-react"
+import { useTransacciones, type TransaccionConRelaciones } from "@/hooks/useTransacciones"
 import { useCategorias } from "@/hooks/useCategorias"
 import { useForm } from "react-hook-form"
 import { useAuth } from "@/hooks/useAuth"
 
 export function Gastos() {
-  const [showForm, setShowForm] = useState(false)
-  const [busqueda, setBusqueda] = useState("")
+  const [showForm, setShowForm]       = useState(false)
+  const [editingItem, setEditingItem] = useState<TransaccionConRelaciones | null>(null)
+  const [busqueda, setBusqueda]       = useState("")
 
-  const { transacciones, loading: loadingTrans, addTransaccion, deleteTransaccion } = useTransacciones("gasto")
+  const { transacciones, loading: loadingTrans, addTransaccion, updateTransaccion, deleteTransaccion } =
+    useTransacciones("gasto")
   const { categorias } = useCategorias("gasto")
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm()
   const { profile } = useAuth()
 
   const isReadOnly = profile?.rol === "solo_lectura"
-  const canDelete  = profile?.rol === "admin"
+  const canMutate  = profile?.rol === "admin" || profile?.rol === "operador"
   const isAdmin    = profile?.rol === "admin"
 
-  const transaccionesFiltradas = transacciones.filter((t) =>
+  const transaccionesFiltradas = transacciones.filter((t: TransaccionConRelaciones) =>
     t.concepto.toLowerCase().includes(busqueda.toLowerCase())
   )
+
+  const handleEdit = (gasto: TransaccionConRelaciones) => {
+    setEditingItem(gasto)
+    setShowForm(true)
+    reset({
+      concepto:  gasto.concepto,
+      monto:     gasto.monto,
+      categoria: gasto.categoria_gasto_id ?? "",
+      medio:     gasto.medio_pago,
+    })
+  }
+
+  const handleCancelForm = () => {
+    setShowForm(false)
+    setEditingItem(null)
+    reset()
+  }
 
   const onSubmit = async (data: any) => {
     if (isReadOnly) return
 
-    const { error } = await addTransaccion({
-      tipo:               "gasto",
+    const payload = {
+      tipo:               "gasto" as const,
       concepto:           data.concepto,
       monto:              parseFloat(data.monto),
       medio_pago:         data.medio,
       categoria_gasto_id: data.categoria || null,
-      fecha:              new Date().toISOString(),
-    })
+      fecha:              editingItem?.fecha ?? new Date().toISOString(),
+    }
+
+    const { error } = editingItem
+      ? await updateTransaccion(editingItem.id, payload)
+      : await addTransaccion(payload)
 
     if (!error) {
-      reset()
-      setShowForm(false)
+      handleCancelForm()
     } else {
       alert("Error al guardar: " + error)
     }
@@ -52,30 +74,30 @@ export function Gastos() {
   return (
     <div className="space-y-6 px-1">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-gray-100 md:text-3xl">Gastos</h2>
           <p className="text-sm text-gray-400">Gestiona los gastos del negocio.</p>
         </div>
-        {!isReadOnly && (
+        {canMutate && !showForm && (
           <Button
             variant="destructive"
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => setShowForm(true)}
             className="w-full sm:w-auto"
           >
             <Plus className="mr-2 h-4 w-4" />
-            {showForm ? "Cancelar" : "Nuevo Gasto"}
+            Nuevo Gasto
           </Button>
         )}
       </div>
 
       {/* ── Formulario ──────────────────────────────────────────────────── */}
-      {showForm && !isReadOnly && (
+      {showForm && canMutate && (
         <Card className="border-rose-500/20 bg-gray-900">
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-rose-400 md:text-lg">
-              Registrar Nuevo Gasto
+              {editingItem ? "Editar Gasto" : "Registrar Nuevo Gasto"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -96,7 +118,7 @@ export function Gastos() {
                   type="number"
                   step="0.01"
                   placeholder="0.00"
-                  {...register("monto", { required: true })}
+                  {...register("monto", { required: true, min: 0.01 })}
                 />
               </div>
 
@@ -104,7 +126,7 @@ export function Gastos() {
                 <Label htmlFor="categoria">Categoría</Label>
                 <Select id="categoria" {...register("categoria")}>
                   <option value="">Seleccionar...</option>
-                  {categorias.map((cat) => (
+                  {categorias.map((cat: any) => (
                     <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                   ))}
                 </Select>
@@ -125,7 +147,7 @@ export function Gastos() {
                   type="button"
                   variant="outline"
                   className="w-full sm:w-auto"
-                  onClick={() => { setShowForm(false); reset() }}
+                  onClick={handleCancelForm}
                 >
                   Cancelar
                 </Button>
@@ -135,7 +157,7 @@ export function Gastos() {
                   disabled={isSubmitting}
                   className="w-full sm:w-auto"
                 >
-                  {isSubmitting ? "Guardando..." : "Guardar Gasto"}
+                  {isSubmitting ? "Guardando..." : editingItem ? "Actualizar Gasto" : "Guardar Gasto"}
                 </Button>
               </div>
             </form>
@@ -158,7 +180,7 @@ export function Gastos() {
 
         <CardContent className="p-0 sm:p-6 sm:pt-0">
 
-          {/* ── Vista mobile: cards ─────────────────────────────────────── */}
+          {/* Mobile */}
           <div className="block sm:hidden">
             {loadingTrans ? (
               <p className="py-8 text-center text-sm text-gray-500">Cargando...</p>
@@ -166,7 +188,7 @@ export function Gastos() {
               <p className="py-8 text-center text-sm text-gray-500">No hay gastos registrados</p>
             ) : (
               <div className="divide-y divide-gray-800">
-                {transaccionesFiltradas.map((gasto: any) => (
+                {transaccionesFiltradas.map((gasto: TransaccionConRelaciones) => (
                   <div key={gasto.id} className="flex items-start justify-between gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="truncate font-medium text-gray-100">{gasto.concepto}</p>
@@ -185,19 +207,29 @@ export function Gastos() {
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2">
+                    <div className="flex shrink-0 flex-col items-end gap-1">
                       <span className="font-mono text-sm font-semibold text-rose-400">
                         -{formatCurrency(gasto.monto)}
                       </span>
-                      {canDelete && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300"
-                          onClick={() => deleteTransaccion(gasto.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                      {canMutate && (
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-sky-400 hover:bg-sky-400/10 hover:text-sky-300"
+                            onClick={() => handleEdit(gasto)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300"
+                            onClick={() => deleteTransaccion(gasto.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -206,7 +238,7 @@ export function Gastos() {
             )}
           </div>
 
-          {/* ── Vista desktop: tabla ────────────────────────────────────── */}
+          {/* Desktop */}
           <div className="hidden sm:block">
             <div className="overflow-x-auto rounded-md border border-gray-800">
               <table className="w-full text-left text-sm text-gray-300">
@@ -218,24 +250,24 @@ export function Gastos() {
                     <th className="px-4 py-3">Medio</th>
                     {isAdmin && <th className="px-4 py-3">Empleado</th>}
                     <th className="px-4 py-3 text-right">Monto</th>
-                    {canDelete && <th className="px-4 py-3 text-right">Acciones</th>}
+                    {canMutate && <th className="px-4 py-3 text-right">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {loadingTrans ? (
                     <tr>
-                      <td colSpan={canDelete ? 7 : 6} className="py-8 text-center text-gray-500">
+                      <td colSpan={canMutate ? 7 : 6} className="py-8 text-center text-gray-500">
                         Cargando...
                       </td>
                     </tr>
                   ) : transaccionesFiltradas.length === 0 ? (
                     <tr>
-                      <td colSpan={canDelete ? 7 : 6} className="py-8 text-center text-gray-500">
+                      <td colSpan={canMutate ? 7 : 6} className="py-8 text-center text-gray-500">
                         No hay gastos registrados
                       </td>
                     </tr>
                   ) : (
-                    transaccionesFiltradas.map((gasto: any) => (
+                    transaccionesFiltradas.map((gasto: TransaccionConRelaciones) => (
                       <tr key={gasto.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                         <td className="px-4 py-3 text-gray-400">{formatDate(gasto.fecha)}</td>
                         <td className="px-4 py-3 font-medium text-gray-100">{gasto.concepto}</td>
@@ -257,16 +289,26 @@ export function Gastos() {
                         <td className="px-4 py-3 text-right font-mono text-rose-400">
                           -{formatCurrency(gasto.monto)}
                         </td>
-                        {canDelete && (
+                        {canMutate && (
                           <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300"
-                              onClick={() => deleteTransaccion(gasto.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-sky-400 hover:bg-sky-400/10 hover:text-sky-300"
+                                onClick={() => handleEdit(gasto)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300"
+                                onClick={() => deleteTransaccion(gasto.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </td>
                         )}
                       </tr>

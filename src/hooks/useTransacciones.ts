@@ -84,6 +84,7 @@ export function useTransacciones(tipo?: TipoTransaccion) {
     fetchTransacciones()
   }, [fetchTransacciones])
 
+  // ── Crear ────────────────────────────────────────────────────────────────
   const addTransaccion = async (transaccion: Partial<Transaccion>) => {
     if (!user) return { data: null, error: 'No autenticado' }
 
@@ -108,6 +109,34 @@ export function useTransacciones(tipo?: TipoTransaccion) {
     }
   }
 
+  // ── Actualizar ───────────────────────────────────────────────────────────
+  const updateTransaccion = async (id: string, cambios: Partial<Transaccion>) => {
+    try {
+      const { data, error: updateError } = await supabase
+        .from('transacciones')
+        .update(cambios)
+        .eq('id', id)
+        .select(SELECT_QUERY)
+        .single()
+
+      if (updateError) throw updateError
+
+      // Preserva empleado_nombre que no viene del SELECT
+      setTransacciones(prev =>
+        prev.map(t =>
+          t.id === id
+            ? { ...(data as TransaccionConRelaciones), empleado_nombre: t.empleado_nombre }
+            : t
+        )
+      )
+
+      return { data: data as TransaccionConRelaciones, error: null }
+    } catch (err: any) {
+      return { data: null, error: err.message }
+    }
+  }
+
+  // ── Eliminar ─────────────────────────────────────────────────────────────
   const deleteTransaccion = async (id: string) => {
     try {
       const { error: deleteError } = await supabase
@@ -130,6 +159,7 @@ export function useTransacciones(tipo?: TipoTransaccion) {
     error,
     isAdmin,
     addTransaccion,
+    updateTransaccion,
     deleteTransaccion,
     refetch: fetchTransacciones,
   }
