@@ -65,7 +65,11 @@ function CategoriaManager({ tipo }: { tipo: 'ingreso' | 'gasto' }) {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-400/10"
-                        onClick={() => deleteCategoria(cat.id)}
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar la categoría "${cat.nombre}"? Esta acción no se puede deshacer.`)) {
+                            deleteCategoria(cat.id)
+                          }
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

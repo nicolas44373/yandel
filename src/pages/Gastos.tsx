@@ -42,6 +42,12 @@ export function Gastos() {
     })
   }
 
+  const handleDelete = (id: string) => {
+    if (window.confirm("¿Eliminar este gasto? Esta acción no se puede deshacer.")) {
+      deleteTransaccion(id)
+    }
+  }
+
   const handleCancelForm = () => {
     setShowForm(false)
     setEditingItem(null)
@@ -225,7 +231,7 @@ export function Gastos() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300"
-                            onClick={() => deleteTransaccion(gasto.id)}
+                            onClick={() => handleDelete(gasto.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -304,7 +310,7 @@ export function Gastos() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300"
-                                onClick={() => deleteTransaccion(gasto.id)}
+                                onClick={() => handleDelete(gasto.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

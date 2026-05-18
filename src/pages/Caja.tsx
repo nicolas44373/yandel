@@ -400,7 +400,6 @@ export function Caja() {
     abrirCaja,
     cerrarCaja,
     isAdmin,
-    totalCajasAbiertas,
   } = useCaja()
 
   const { transacciones, loading: loadingTrans } = useTransacciones()
@@ -410,6 +409,19 @@ export function Caja() {
   const [cajaSeleccionadaIdx, setCajaSeleccionadaIdx] = useState(0)
 
   const isReadOnly = profile?.rol === "solo_lectura"
+
+  // Saldo teórico real: apertura + ingresos efectivo - gastos efectivo por cada caja abierta
+  const totalCajasAbiertas = useMemo(
+    () =>
+      historial
+        .filter(c => c.estado === "abierta")
+        .reduce((sum, caja) => {
+          const movs = getMovimientosDeCaja(transacciones, caja)
+          const { saldoTeorico } = calcularResumen(movs, caja.saldo_apertura)
+          return sum + saldoTeorico
+        }, 0),
+    [historial, transacciones]
+  )
 
   const historialOrdenado = useMemo(
     () => [...historial].sort(
@@ -435,7 +447,13 @@ export function Caja() {
 
   const handleCerrarCaja = async (efectivo: number, obs: string) => {
     if (!cajaActual) return
-    await cerrarCaja(cajaActual.id, efectivo, obs)
+    const movs = getMovimientosDeCaja(transacciones, cajaActual)
+    const r    = calcularResumen(movs, cajaActual.saldo_apertura)
+    await cerrarCaja(cajaActual.id, efectivo, obs, {
+      totalIngresos: r.totalIngresos,
+      totalGastos:   r.totalGastos,
+      saldoTeorico:  r.saldoTeorico,
+    })
   }
 
   const puedesCerrarEstaVista =

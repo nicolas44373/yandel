@@ -112,7 +112,12 @@ export function useCaja() {
     }
   }
 
-  const cerrarCaja = async (id: string, efectivoContado: number, observaciones?: string) => {
+  const cerrarCaja = async (
+    id: string,
+    efectivoContado: number,
+    observaciones?: string,
+    totales?: { totalIngresos: number; totalGastos: number; saldoTeorico: number },
+  ) => {
     try {
       const { data, error } = await supabase
         .from('cierres_caja')
@@ -121,6 +126,12 @@ export function useCaja() {
           fecha_cierre:     new Date().toISOString(),
           efectivo_contado: efectivoContado,
           observaciones:    observaciones ?? null,
+          ...(totales && {
+            total_ingresos: totales.totalIngresos,
+            total_gastos:   totales.totalGastos,
+            saldo_cierre:   totales.saldoTeorico,
+            diferencia:     efectivoContado - totales.saldoTeorico,
+          }),
         })
         .eq('id', id)
         .select()
@@ -137,10 +148,6 @@ export function useCaja() {
     }
   }
 
-  const totalCajasAbiertas = historial
-    .filter(c => c.estado === 'abierta')
-    .reduce((sum, c) => sum + c.saldo_apertura, 0)
-
   return {
     cajaActual,
     historial,
@@ -149,6 +156,5 @@ export function useCaja() {
     cerrarCaja,
     refetch: fetchCaja,
     isAdmin,
-    totalCajasAbiertas,
   }
 }

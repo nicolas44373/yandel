@@ -7,11 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { Download } from "lucide-react"
 import { useTransacciones } from "@/hooks/useTransacciones"
-import { useAuth } from "@/hooks/useAuth"
+import ExcelJS from "exceljs"
 
 export function Movimientos() {
   const { transacciones, loading, isAdmin } = useTransacciones()
-  const { profile } = useAuth()
 
   const [filtroTipo,  setFiltroTipo]  = useState("")
   const [filtroMedio, setFiltroMedio] = useState("")
@@ -39,24 +38,228 @@ export function Movimientos() {
       .reduce((s, m) => s + m.monto, 0),
   }), [transaccionesFiltradas])
 
-  const handleExportCSV = () => {
-    const headers = ["Fecha", "Tipo", "Concepto", "Categoría", "Medio", "Monto"]
-    const rows = transaccionesFiltradas.map((m: any) => [
-      formatDate(m.fecha),
-      m.tipo,
-      m.concepto,
-      m.tipo === "ingreso"
-        ? (m.categoria_ingreso?.nombre ?? "Sin categoría")
-        : (m.categoria_gasto?.nombre  ?? "Sin categoría"),
-      m.medio_pago.replace(/_/g, " "),
-      m.tipo === "ingreso" ? m.monto : -m.monto,
+  const handleExportExcel = async () => {
+    const wb = new ExcelJS.Workbook()
+    wb.creator  = "Malas Influencias"
+    wb.created  = new Date()
+
+    // ── Paleta ─────────────────────────────────────────────────────────────
+    const C = {
+      headerBg:    "FF17375E",  // azul oscuro
+      headerFont:  "FFFFFFFF",  // blanco
+      ingresoBg:   "FFE8F5E9",  // verde muy claro
+      ingresoFont: "FF1B5E20",  // verde oscuro
+      gastoBg:     "FFFDECEA",  // rojo muy claro
+      gastoFont:   "FFB71C1C",  // rojo oscuro
+      totalBg:     "FFF5F5F5",  // gris claro
+      titleFont:   "FF17375E",
+      borderColor: "FFBDBDBD",
+    }
+
+    const borderThin = (color = C.borderColor): Partial<ExcelJS.Border> =>
+      ({ style: "thin", color: { argb: color } })
+
+    const allBorders = (color?: string): Partial<ExcelJS.Borders> => ({
+      top: borderThin(color), bottom: borderThin(color),
+      left: borderThin(color), right: borderThin(color),
+    })
+
+    // ══════════════════════════════════════════════════════════════════════
+    // HOJA 1 — MOVIMIENTOS
+    // ══════════════════════════════════════════════════════════════════════
+    const ws = wb.addWorksheet("Movimientos", {
+      views: [{ state: "frozen", ySplit: 4 }],
+    })
+
+    const columnas = [
+      { header: "Fecha",        key: "fecha",    width: 22 },
+      { header: "Tipo",         key: "tipo",     width: 12 },
+      { header: "Concepto",     key: "concepto", width: 36 },
+      { header: "Categoría",    key: "cat",      width: 26 },
+      { header: "Medio de Pago",key: "medio",    width: 20 },
+      { header: "Monto (ARS)",  key: "monto",    width: 18 },
+      ...(isAdmin ? [{ header: "Empleado", key: "empleado", width: 20 }] : []),
+    ]
+    ws.columns = columnas
+
+    const colCount = columnas.length
+
+    // Fila 1: título
+    ws.mergeCells(1, 1, 1, colCount)
+    const titleCell = ws.getCell("A1")
+    titleCell.value = "Malas Influencias — Reporte de Movimientos"
+    titleCell.font  = { bold: true, size: 14, color: { argb: C.titleFont } }
+    titleCell.alignment = { horizontal: "center", vertical: "middle" }
+    ws.getRow(1).height = 28
+
+    // Fila 2: rango de fechas y totales filtrados
+    ws.mergeCells(2, 1, 2, colCount)
+    const subtitleCell = ws.getCell("A2")
+    const fechas = transaccionesFiltradas.map((m: any) => new Date(m.fecha).getTime())
+    const desde  = fechas.length ? new Date(Math.min(...fechas)) : new Date()
+    const hasta  = fechas.length ? new Date(Math.max(...fechas)) : new Date()
+    subtitleCell.value = `Período: ${desde.toLocaleDateString("es-AR")} – ${hasta.toLocaleDateString("es-AR")}  |  ${transaccionesFiltradas.length} movimientos`
+    subtitleCell.font  = { italic: true, size: 10, color: { argb: "FF757575" } }
+    subtitleCell.alignment = { horizontal: "center" }
+    ws.getRow(2).height = 18
+
+    // Fila 3: vacía (separador visual)
+    ws.getRow(3).height = 6
+
+    // Fila 4: encabezados
+    const headerRow = ws.getRow(4)
+    headerRow.values = columnas.map(c => c.header)
+    headerRow.eachCell(cell => {
+      cell.font      = { bold: true, color: { argb: C.headerFont }, size: 11 }
+      cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: C.headerBg } }
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false }
+      cell.border    = allBorders(C.headerBg)
+    })
+    headerRow.height = 22
+    ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: colCount } }
+
+    // Filas de datos
+    let totalIngresos = 0
+    let totalGastos   = 0
+
+    transaccionesFiltradas.forEach((m: any) => {
+      const esIngreso = m.tipo === "ingreso"
+      const monto     = esIngreso ? m.monto : -m.monto
+      if (esIngreso) totalIngresos += m.monto
+      else           totalGastos   += m.monto
+
+      const values: (string | number)[] = [
+        formatDate(m.fecha),
+        esIngreso ? "Ingreso" : "Gasto",
+        m.concepto,
+        esIngreso
+          ? (m.categoria_ingreso?.nombre ?? "Sin categoría")
+          : (m.categoria_gasto?.nombre  ?? "Sin categoría"),
+        m.medio_pago.replace(/_/g, " "),
+        monto,
+        ...(isAdmin ? [m.empleado_nombre ?? "—"] : []),
+      ]
+
+      const row = ws.addRow(values)
+      row.eachCell((cell, colIdx) => {
+        cell.fill   = { type: "pattern", pattern: "solid",
+          fgColor: { argb: esIngreso ? C.ingresoBg : C.gastoBg } }
+        cell.font   = { color: { argb: esIngreso ? C.ingresoFont : C.gastoFont }, size: 10 }
+        cell.border = allBorders()
+        cell.alignment = { vertical: "middle" }
+        if (colIdx === 6) {  // columna Monto
+          cell.numFmt    = "#,##0.00"
+          cell.alignment = { horizontal: "right", vertical: "middle" }
+        }
+      })
+    })
+
+    // Fila de totales
+    const totalRow = ws.addRow([
+      "", "TOTALES", "", "", "",
+      totalIngresos - totalGastos,
+      ...(isAdmin ? [""] : []),
     ])
-    const csv = [headers, ...rows].map(r => r.join(",")).join("\n")
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement("a")
+    totalRow.eachCell((cell, colIdx) => {
+      cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: C.totalBg } }
+      cell.font   = { bold: true, size: 11, color: { argb: C.titleFont } }
+      cell.border = allBorders("FF9E9E9E")
+      if (colIdx === 6) {
+        cell.numFmt    = "#,##0.00"
+        cell.alignment = { horizontal: "right", vertical: "middle" }
+        cell.font = {
+          bold: true, size: 11,
+          color: { argb: totalIngresos - totalGastos >= 0 ? C.ingresoFont : C.gastoFont },
+        }
+      }
+    })
+    totalRow.height = 20
+
+    // ══════════════════════════════════════════════════════════════════════
+    // HOJA 2 — RESUMEN
+    // ══════════════════════════════════════════════════════════════════════
+    const ws2 = wb.addWorksheet("Resumen")
+    ws2.columns = [
+      { key: "a", width: 30 },
+      { key: "b", width: 20 },
+    ]
+
+    const addTitle2 = (text: string) => {
+      ws2.mergeCells(ws2.rowCount + 1, 1, ws2.rowCount, 2)
+      const r = ws2.lastRow!
+      r.getCell(1).value = text
+      r.getCell(1).font  = { bold: true, size: 13, color: { argb: C.titleFont } }
+      r.height = 24
+    }
+    const addKpi = (label: string, value: number, positive = true) => {
+      const r = ws2.addRow([label, value])
+      r.getCell(1).font = { size: 11, color: { argb: "FF424242" } }
+      r.getCell(2).numFmt    = "#,##0.00"
+      r.getCell(2).alignment = { horizontal: "right" }
+      r.getCell(2).font = {
+        bold: true, size: 11,
+        color: { argb: positive ? C.ingresoFont : C.gastoFont },
+      }
+      r.getCell(1).border = allBorders()
+      r.getCell(2).border = allBorders()
+      r.height = 20
+    }
+    const addBlank = () => { ws2.addRow([]) }
+
+    addTitle2("Resumen de Movimientos")
+    addBlank()
+
+    ws2.addRow(["Período analizado",
+      `${desde.toLocaleDateString("es-AR")} – ${hasta.toLocaleDateString("es-AR")}`])
+    ws2.addRow(["Total de registros", transaccionesFiltradas.length])
+    addBlank()
+
+    addTitle2("Resultados")
+    addKpi("Total Ingresos", totalIngresos, true)
+    addKpi("Total Gastos",  -totalGastos,   false)
+    const neto = totalIngresos - totalGastos
+    addKpi("Saldo Neto", neto, neto >= 0)
+    addBlank()
+
+    // Por medio de pago
+    addTitle2("Desglose por Medio de Pago")
+    const medios: Record<string, { ing: number; gas: number }> = {}
+    transaccionesFiltradas.forEach((m: any) => {
+      const k = m.medio_pago.replace(/_/g, " ")
+      if (!medios[k]) medios[k] = { ing: 0, gas: 0 }
+      if (m.tipo === "ingreso") medios[k].ing += m.monto
+      else                       medios[k].gas += m.monto
+    })
+
+    const medioHeader = ws2.addRow(["Medio", "Ingresos", "Gastos", "Neto"])
+    medioHeader.eachCell(c => {
+      c.font = { bold: true, color: { argb: C.headerFont } }
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: C.headerBg } }
+      c.alignment = { horizontal: "center" }
+      c.border = allBorders(C.headerBg)
+    })
+    ws2.getColumn(3).width = 18
+    ws2.getColumn(4).width = 18
+
+    Object.entries(medios).forEach(([medio, { ing, gas }]) => {
+      const r = ws2.addRow([medio, ing, gas, ing - gas])
+      r.getCell(2).numFmt = "#,##0.00"
+      r.getCell(3).numFmt = "#,##0.00"
+      r.getCell(4).numFmt = "#,##0.00"
+      r.eachCell(c => { c.border = allBorders() })
+      r.getCell(4).font = { bold: true,
+        color: { argb: ing - gas >= 0 ? C.ingresoFont : C.gastoFont } }
+    })
+
+    // ── Descarga ────────────────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob   = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
+    const url = URL.createObjectURL(blob)
+    const a   = document.createElement("a")
     a.href     = url
-    a.download = `movimientos_${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `movimientos_${new Date().toISOString().slice(0, 10)}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -70,8 +273,8 @@ export function Movimientos() {
           <h2 className="text-2xl font-bold tracking-tight text-gray-100 md:text-3xl">Movimientos</h2>
           <p className="text-sm text-gray-400">Historial completo de ingresos y gastos.</p>
         </div>
-        <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
-          <Download className="mr-2 h-4 w-4" /> Exportar CSV
+        <Button variant="outline" onClick={handleExportExcel} className="w-full sm:w-auto">
+          <Download className="mr-2 h-4 w-4" /> Exportar Excel
         </Button>
       </div>
 
