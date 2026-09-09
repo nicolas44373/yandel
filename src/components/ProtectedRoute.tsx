@@ -3,9 +3,11 @@ import { useAuth } from '@/hooks/useAuth'
 
 interface ProtectedRouteProps {
   allowedRoles?: ('admin' | 'operador' | 'solo_lectura')[];
+  /** A dónde mandar si el rol no está permitido (default "/ingresos") */
+  redirectTo?: string;
 }
 
-export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
+export const ProtectedRoute = ({ allowedRoles, redirectTo = '/ingresos' }: ProtectedRouteProps) => {
   const { user, profile, loading } = useAuth();
 
   if (loading) {
@@ -17,7 +19,7 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
   }
 
   if (allowedRoles && profile && !allowedRoles.includes(profile.rol)) {
-    return <Navigate to="/" replace />; // Or a "Not Authorized" page
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <Outlet />;

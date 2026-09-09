@@ -19,7 +19,10 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Layout />}>
-              <Route index element={<Dashboard />} />
+              {/* Solo admin puede ver el Dashboard */}
+              <Route element={<ProtectedRoute allowedRoles={['admin']} redirectTo="/ingresos" />}>
+                <Route index element={<Dashboard />} />
+              </Route>
               <Route path="ingresos" element={<Ingresos />} />
               <Route path="gastos" element={<Gastos />} />
               <Route path="caja" element={<Caja />} />

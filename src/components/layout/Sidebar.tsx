@@ -18,7 +18,9 @@ export function Sidebar() {
   const navigate = useNavigate()
 
   const navItems = [
-    { name: "Dashboard",     href: "/",              icon: LayoutDashboard },
+    ...(profile?.rol === "admin"
+      ? [{ name: "Dashboard", href: "/", icon: LayoutDashboard }]
+      : []),
     { name: "Ingresos",      href: "/ingresos",      icon: TrendingUp      },
     { name: "Gastos",        href: "/gastos",        icon: TrendingDown    },
     { name: "Caja",          href: "/caja",          icon: Wallet          },

@@ -20,7 +20,9 @@ export function BottomNav() {
   const [showMore, setShowMore] = useState(false)
 
   const mainItems = [
-    { name: "Dashboard", href: "/",         icon: LayoutDashboard },
+    ...(profile?.rol === "admin"
+      ? [{ name: "Dashboard", href: "/", icon: LayoutDashboard }]
+      : []),
     { name: "Ingresos",  href: "/ingresos", icon: TrendingUp      },
     { name: "Gastos",    href: "/gastos",   icon: TrendingDown    },
     { name: "Caja",      href: "/caja",     icon: Wallet          },
