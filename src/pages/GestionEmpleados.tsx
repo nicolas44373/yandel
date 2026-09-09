@@ -56,42 +56,19 @@ export function GestionEmpleados() {
     setError(null)
     setSuccess(null)
 
-    // 1. Guardar sesión del admin actual
+    // 1. Guardar la sesión del admin actual (signUp inicia sesión como el nuevo usuario)
     const { data: sessionData } = await supabase.auth.getSession()
     const adminSession = sessionData.session
 
-    // 2. Crear el nuevo usuario en Auth
+    // 2. Crear el usuario en Auth
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: form.email,
+      email: form.email.trim().toLowerCase(),
       password: form.password,
+      options: { data: { nombre: form.nombre || null } },
     })
 
-    if (signUpError || !signUpData.user) {
-      setError(signUpError?.message || "Error al crear el usuario.")
-      setSubmitting(false)
-      return
-    }
-
-    const newUserId = signUpData.user.id
-
-    // 3. Insertar perfil en la tabla profiles
-    const { error: profileError } = await supabase.from("profiles").upsert({
-      id: newUserId,
-      nombre: form.nombre,
-      organizacion: form.organizacion,
-      rol: form.rol,
-    })
-
-    if (profileError) {
-      setError("Usuario creado pero hubo un error al guardar el perfil: " + profileError.message)
-    } else {
-      setSuccess(`Empleado "${form.nombre}" creado correctamente.`)
-      setForm({ email: "", password: "", nombre: "", organizacion: "", rol: "operador" })
-      setShowForm(false)
-      fetchProfiles()
-    }
-
-    // 4. Restaurar sesión del admin
+    // 3. Restaurar la sesión del admin ANTES de tocar la tabla profiles,
+    //    para que el insert corra con permisos de admin.
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -99,6 +76,38 @@ export function GestionEmpleados() {
       })
     }
 
+    if (signUpError || !signUpData.user) {
+      setError(signUpError?.message || "No se pudo crear el usuario.")
+      setSubmitting(false)
+      return
+    }
+
+    // Si identities viene vacío, el email ya estaba registrado (Supabase no lo dice
+    // explícito por seguridad). En ese caso el id es falso -> no insertamos perfil.
+    if ((signUpData.user.identities?.length ?? 0) === 0) {
+      setError(`El email "${form.email}" ya está registrado.`)
+      setSubmitting(false)
+      return
+    }
+
+    // 4. Crear el perfil (el id ya existe en auth.users)
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: signUpData.user.id,
+      nombre: form.nombre || null,
+      organizacion: form.organizacion || null,
+      rol: form.rol,
+    })
+
+    if (profileError) {
+      setError("Usuario creado pero falló el perfil: " + profileError.message)
+      setSubmitting(false)
+      return
+    }
+
+    setSuccess(`Empleado "${form.nombre || form.email}" creado correctamente.`)
+    setForm({ email: "", password: "", nombre: "", organizacion: "", rol: "operador" })
+    setShowForm(false)
+    fetchProfiles()
     setSubmitting(false)
   }
 
